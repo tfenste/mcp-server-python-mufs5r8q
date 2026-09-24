@@ -1,22 +1,16 @@
-from mcp.server.mcpserver import MCPServer, Context
+import hmac
+import os
+from mcp.server.mcpserver import Context, MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
-import hmac
-import os
 
 MCP_API_TOKEN = os.environ.get("MCP_API_TOKEN")
 RENDER_EXTERNAL_HOSTNAME = os.environ.get("RENDER_EXTERNAL_HOSTNAME")
 
-mcp = MCPServer(
-    "my-mcp-server",
-    stateless_http=True,
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=bool(RENDER_EXTERNAL_HOSTNAME),
-        allowed_hosts=[RENDER_EXTERNAL_HOSTNAME] if RENDER_EXTERNAL_HOSTNAME else [],
-    ),
-)
+# 1. In v2, keep the constructor minimal
+mcp = MCPServer("my-mcp-server")
 
 
 # Add tools below. The docstring is surfaced to LLMs as the tool description.
@@ -63,7 +57,16 @@ class BearerAuthMiddleware:
 
 
 def create_app():
-    app = mcp.streamable_http_app()
+    # 2. Move transport_security and stateless_http configurations here
+    app = mcp.streamable_http_app(
+        stateless_http=True,
+        json_response=True,  # Recommended alongside stateless for proper HTTP structuring
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=bool(RENDER_EXTERNAL_HOSTNAME),
+            allowed_hosts=[RENDER_EXTERNAL_HOSTNAME] if RENDER_EXTERNAL_HOSTNAME else [],
+        ),
+    )
+    
     # When no token is set (local dev), auth is disabled entirely
     if MCP_API_TOKEN:
         app.add_middleware(BearerAuthMiddleware)
